@@ -1,15 +1,34 @@
 const express = require("express");
 const mongoose = require("mongoose");
 const Product = require("./models/Product"); 
+const multer = require("multer");
+const path = require("path");
+const cors = require("cors"); 
 const app = express();
 require("dotenv").config();
-
+app.use(cors());
 app.use(express.json());
 
 
-app.post("/add-product", async (req, res) => {
+// Setup multer for file uploads
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, "uploads/"); // Directory to save uploaded files
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1E9);
+    cb(null, file.fieldname + "-" + uniqueSuffix + path.extname(file.originalname)); // Generate unique filenames
+  },
+});
+
+const upload = multer({ storage: storage });
+
+
+app.post("/add-product",  upload.array("images", 5),async (req, res) => {
+  console.log("Uploaded files:", req.files); 
   try {
-    const { sku, productName, quantity, description, images } = req.body;
+    const { sku, productName, quantity, description } = req.body;
+    const images = req.files.map((file) => file.path); // Save the file paths to MongoDB
 
     const newProduct = new Product({
       sku,
