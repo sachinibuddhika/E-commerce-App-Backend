@@ -27,15 +27,18 @@ const upload = multer({ storage: storage });
 app.post("/add-product",  upload.array("images", 5),async (req, res) => {
   console.log("Uploaded files:", req.files); 
   try {
-    const { sku, productName, quantity, description } = req.body;
+    const { sku, productName, quantity, description,thumbnail  } = req.body;
     const images = req.files.map((file) => file.path); // Save the file paths to MongoDB
+    const selectedThumbnail = req.files.find(file => file.originalname === thumbnail)?.path;
 
+    
     const newProduct = new Product({
       sku,
       productName,
       quantity,
       description,
       images,
+      thumbnail: selectedThumbnail,
     });
 
     await newProduct.save();
