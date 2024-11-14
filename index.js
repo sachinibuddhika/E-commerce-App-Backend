@@ -95,38 +95,51 @@ app.get("/product/sku/:sku", async (req, res) => {
   }
 });
 
-
-
 app.put("/update-product/sku/:sku", upload.fields([
   { name: "images", maxCount: 5 }, // multiple image files
   { name: "thumbnail", maxCount: 1 }, // single thumbnail image
-]), async (req, res)  => {
+]), async (req, res) => {
   console.log("Files received:", req.files);  // Log the uploaded files to check if they are correctly sent
   try {
     const { sku } = req.params; // Get SKU from URL params
     const { productName, quantity, description } = req.body; // Get data from body
 
-    // Handle image file upload
-    const images = req.files["images"] ? req.files["images"].map((file) => file.path) : [];
-    const selectedThumbnail = req.files["thumbnail"] ? req.files["thumbnail"][0].path : null;
+    // Find the existing product by SKU
+    const existingProduct = await Product.findOne({ sku });
+    if (!existingProduct) {
+      return res.status(404).json({ error: "Product not found" });
+    }
 
+    // Handle image file uploads (if any). Merge new images with existing ones.
+    let images = [...existingProduct.images]; // Start with the existing images in the DB
+    if (req.files["images"]) {
+      const newImages = req.files["images"].map(file => file.path);
+      images = [...images, ...newImages]; // Add new images to the existing ones
+    }
 
-    // Find the product by SKU and update it
+    // Handle thumbnail update (if a new one is uploaded, otherwise retain the old thumbnail)
+    let selectedThumbnail = null;
+    if (req.files["thumbnail"]) {
+      selectedThumbnail = req.files["thumbnail"][0].path; // If new thumbnail uploaded, use the new path
+    } else if (req.body.thumbnail && req.body.thumbnail !== "") {
+      selectedThumbnail = req.body.thumbnail; // If existing thumbnail path is provided (unchanged), retain it
+    } else {
+      // If no new thumbnail and no thumbnail data provided, keep the old thumbnail
+      selectedThumbnail = existingProduct.thumbnail;
+    }
+
+    // Update the product in the database
     const updatedProduct = await Product.findOneAndUpdate(
       { sku }, // Find product by SKU
       {
         productName,
         quantity,
         description,
-        images,
-        thumbnail: selectedThumbnail || "", // Update thumbnail if provided
+        images, // Save the updated images array
+        thumbnail: selectedThumbnail, // Save the updated thumbnail
       },
       { new: true } // Return the updated product
     );
-
-    if (!updatedProduct) {
-      return res.status(404).json({ error: "Product not found" });
-    }
 
     // Respond with the updated product
     res.status(200).json(updatedProduct);
@@ -135,6 +148,7 @@ app.put("/update-product/sku/:sku", upload.fields([
     res.status(500).json({ error: "Failed to update product", details: err });
   }
 });
+
 
 
 
