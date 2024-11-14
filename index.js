@@ -8,28 +8,43 @@ const app = express();
 require("dotenv").config();
 app.use(cors());
 app.use(express.json());
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
+
+
+// const storage = multer.diskStorage({
+//   destination: (req, file, cb) => {
+//     cb(null, 'uploads/'); // Store files in the 'uploads/' folder
+//   },
+//   filename: (req, file, cb) => {
+//     // Store only the unique filename without the full path
+//     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+//     cb(null, uniqueSuffix + path.extname(file.originalname)); // Generate filename like "1731472427442-374281621.png"
+//   }
+// });
 
 // Setup multer for file uploads
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    cb(null, "uploads/"); // Directory to save uploaded files
+    cb(null, 'uploads/'); // Store files in the 'uploads/' folder
   },
   filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1E9);
-    cb(null, file.fieldname + "-" + uniqueSuffix + path.extname(file.originalname)); // Generate unique filenames
-  },
+    // Store only the unique filename without the full path
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, uniqueSuffix + path.extname(file.originalname)); // Generate filename like "1731472427442-374281621.png"
+  }
 });
 
-const upload = multer({ storage: storage });
+const upload = multer({ storage });
 
 //add a new product
 app.post("/add-product",  upload.array("images", 5),async (req, res) => {
   console.log("Uploaded files:", req.files); 
   try {
     const { sku, productName, quantity, description,thumbnail  } = req.body;
-    const images = req.files.map((file) => file.path); // Save the file paths to MongoDB
-    const selectedThumbnail = req.files.find(file => file.originalname === thumbnail)?.path;
+    // const images = req.files.map((file) => file.path); 
+    const images = req.files.map((file) => file.filename);  // Save only the filename, not the full path
+    const selectedThumbnail = req.files.find(file => file.originalname === thumbnail)?.filename;
 
     
     const newProduct = new Product({
@@ -53,6 +68,7 @@ app.post("/add-product",  upload.array("images", 5),async (req, res) => {
 app.get("/api/products", async (req, res) => {
   try {
     const products = await Product.find(); // Fetch all products from the database
+    console.log("Products from DB:", products);
     res.status(200).json(products); // Send the list of products as JSON
   } catch (err) {
     res.status(500).json({ error: "Failed to fetch products", details: err });
