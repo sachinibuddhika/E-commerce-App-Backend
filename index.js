@@ -10,6 +10,15 @@ app.use(cors());
 app.use(express.json());
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
+const corsOptions = {
+  origin: ['http://localhost:3000', 'http://127.0.0.1:5173'], // Allow both origins
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  allowedHeaders: ['Content-Type'],
+};
+
+app.use(cors(corsOptions)); // Apply the updated CORS configuration
+
+
 
 // Setup multer for file uploads
 const storage = multer.diskStorage({
@@ -137,36 +146,60 @@ app.put("/update-product/sku/:sku", upload.fields([
   }
 });
 
-//api for search functionality
+
+
+
+// API to fetch search results based on partial word matching
+
 app.get("/api/search", async (req, res) => {
-  const { query } = req.query; // Get the search query from the request
-  
-  // If no query is provided, return an empty array
+  const { query } = req.query;
+
   if (!query) {
     return res.status(200).json([]);
   }
 
   try {
-    // Use a regular expression to match the query against different fields
-    const regexQuery = new RegExp(query, 'i'); // Case-insensitive regex search
-    
-    // Search products by SKU, product name, description, or price (as string)
-    const result = await Product.find({
+    // Using RegEx to match the word in product name, description, SKU, or price
+    const regexQuery = new RegExp(query, 'i'); // 'i' for case-insensitive match
+
+    // Fetch products matching the query anywhere in product name, description, SKU, or price
+    const products = await Product.find({
       $or: [
-        { sku: regexQuery },            // Match SKU
-        { productName: regexQuery },     // Match product name
-        { description: regexQuery },     // Match description
-        { price: { $regex: query, $options: 'i' } } // Match price (converted to string)
-      ]
+        { productName: regexQuery },  // Match product name
+        { description: regexQuery },  // Match product description
+        { sku: regexQuery },          // Match SKU
+        { price: regexQuery }         // Match price (though price is numeric, it can match string representation)
+      ],
     });
 
-    // Send the search results as a JSON response
-    res.status(200).json(result);
+    // Extract words from the product name, description, SKU, and price (no duplicates)
+    const words = new Set();
+    products.forEach((product) => {
+      // Split the product name, description, SKU, and price into words and add to the set
+      const productData = `${product.productName} ${product.description} ${product.sku} ${product.price}`;
+
+      // Split the data into words, filtering out empty strings
+      const productWords = productData.split(/\s+/).filter(word => word.trim() !== '');
+
+      // Add words to the set (only unique words)
+      productWords.forEach((word) => {
+        words.add(word.toLowerCase()); // Store words in lowercase for case-insensitive matching
+      });
+    });
+
+    // Return all distinct words matching the query
+    const filteredWords = [...words].filter(word => word.startsWith(query.toLowerCase()));
+    res.status(200).json(filteredWords); // Return the matching words as suggestions
   } catch (err) {
     console.error("Error fetching search results:", err);
-    res.status(500).json({ error: "Failed to fetch search results", details: err });
+    res.status(500).json({ error: "Failed to fetch search results" });
   }
 });
+
+
+
+
+
 
 
 // Start the server
