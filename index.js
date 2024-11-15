@@ -5,6 +5,11 @@ const multer = require("multer");
 const path = require("path");
 const cors = require("cors"); 
 const app = express();
+const router = express.Router();
+const PORT = 4000;
+
+app.use(express.json());
+
 require("dotenv").config();
 app.use(cors());
 app.use(express.json());
@@ -146,53 +151,34 @@ app.put("/update-product/sku/:sku", upload.fields([
   }
 });
 
-
-
-
-// API to fetch search results based on partial word matching
-
 app.get("/api/search", async (req, res) => {
   const { query } = req.query;
+  console.log("Received search query:", query);  // Log the query
 
   if (!query) {
-    return res.status(200).json([]);
+    return res.status(400).json({ error: "Query parameter is required" });
   }
 
   try {
-    // Using RegEx to match the word in product name, description, SKU, or price
-    const regexQuery = new RegExp(query, 'i'); // 'i' for case-insensitive match
-
-    // Fetch products matching the query anywhere in product name, description, SKU, or price
+    // Construct the search query dynamically
     const products = await Product.find({
       $or: [
-        { productName: regexQuery },  // Match product name
-        { description: regexQuery },  // Match product description
-        { sku: regexQuery },          // Match SKU
-        { price: regexQuery }         // Match price (though price is numeric, it can match string representation)
-      ],
+        { productName: { $regex: query, $options: "i" } }, // Case-insensitive search for productName
+        { description: { $regex: query, $options: "i" } }, // Case-insensitive search for description
+        { sku: { $regex: query, $options: "i" } }           // Case-insensitive search for SKU
+      ]
     });
 
-    // Extract words from the product name, description, SKU, and price (no duplicates)
-    const words = new Set();
-    products.forEach((product) => {
-      // Split the product name, description, SKU, and price into words and add to the set
-      const productData = `${product.productName} ${product.description} ${product.sku} ${product.price}`;
+    console.log("Search Results:", products); // Log the products to see what is being returned
 
-      // Split the data into words, filtering out empty strings
-      const productWords = productData.split(/\s+/).filter(word => word.trim() !== '');
+    if (products.length === 0) {
+      return res.status(404).json({ message: "No products found" });
+    }
 
-      // Add words to the set (only unique words)
-      productWords.forEach((word) => {
-        words.add(word.toLowerCase()); // Store words in lowercase for case-insensitive matching
-      });
-    });
-
-    // Return all distinct words matching the query
-    const filteredWords = [...words].filter(word => word.startsWith(query.toLowerCase()));
-    res.status(200).json(filteredWords); // Return the matching words as suggestions
+    res.json(products);  // Send matching products back to the client
   } catch (err) {
-    console.error("Error fetching search results:", err);
-    res.status(500).json({ error: "Failed to fetch search results" });
+    console.error("Error fetching products:", err);
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 
@@ -200,7 +186,31 @@ app.get("/api/search", async (req, res) => {
 
 
 
+// Search results API (returns full product details based on query)
+app.get('/api/searchResults', async (req, res) => {
+  const { query } = req.query; // Get the query from the URL parameters
+  
+  if (!query) {
+    return res.status(400).json({ message: 'Query parameter is required' });
+  }
 
+  try {
+    // Perform a case-insensitive search for product details
+    const products = await Product.find({
+      $or: [
+        { name: { $regex: query, $options: 'i' } },
+        { description: { $regex: query, $options: 'i' } },
+        { sku: { $regex: query, $options: 'i' } },
+      ]
+    });
+
+    // Return the full product details
+    res.json(products);
+  } catch (error) {
+    console.error('Error fetching search results:', error);
+    res.status(500).json({ message: 'Error fetching search results' });
+  }
+});
 
 // Start the server
 mongoose.connect("mongodb+srv://sachini:ecom123@e-commerce-app.ywdc8.mongodb.net/?retryWrites=true&w=majority&appName=E-Commerce-App", { dbName: "e_com_db" })
@@ -212,4 +222,9 @@ mongoose.connect("mongodb+srv://sachini:ecom123@e-commerce-app.ywdc8.mongodb.net
   })
   .catch((err) => {
     console.log("Error connecting to the database:", err);
+  });
+
+  module.exports = router;
+  app.listen(PORT, () => {
+    console.log(`Server is running on http://localhost:${PORT}`);
   });
