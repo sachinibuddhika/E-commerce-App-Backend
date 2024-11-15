@@ -11,18 +11,6 @@ app.use(express.json());
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 
-
-// const storage = multer.diskStorage({
-//   destination: (req, file, cb) => {
-//     cb(null, 'uploads/'); // Store files in the 'uploads/' folder
-//   },
-//   filename: (req, file, cb) => {
-//     // Store only the unique filename without the full path
-//     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-//     cb(null, uniqueSuffix + path.extname(file.originalname)); // Generate filename like "1731472427442-374281621.png"
-//   }
-// });
-
 // Setup multer for file uploads
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -149,12 +137,40 @@ app.put("/update-product/sku/:sku", upload.fields([
   }
 });
 
+//api for search functionality
+app.get("/api/search", async (req, res) => {
+  const { query } = req.query; // Get the search query from the request
+  
+  // If no query is provided, return an empty array
+  if (!query) {
+    return res.status(200).json([]);
+  }
 
+  try {
+    // Use a regular expression to match the query against different fields
+    const regexQuery = new RegExp(query, 'i'); // Case-insensitive regex search
+    
+    // Search products by SKU, product name, description, or price (as string)
+    const result = await Product.find({
+      $or: [
+        { sku: regexQuery },            // Match SKU
+        { productName: regexQuery },     // Match product name
+        { description: regexQuery },     // Match description
+        { price: { $regex: query, $options: 'i' } } // Match price (converted to string)
+      ]
+    });
 
+    // Send the search results as a JSON response
+    res.status(200).json(result);
+  } catch (err) {
+    console.error("Error fetching search results:", err);
+    res.status(500).json({ error: "Failed to fetch search results", details: err });
+  }
+});
 
 
 // Start the server
-mongoose.connect(process.env.MONG_URI, { dbName: "e_com_db" })
+mongoose.connect("mongodb+srv://sachini:ecom123@e-commerce-app.ywdc8.mongodb.net/?retryWrites=true&w=majority&appName=E-Commerce-App", { dbName: "e_com_db" })
   .then(() => {
     console.log("Connected to the database successfully");
     app.listen(4000, "localhost", () => {
